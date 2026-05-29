@@ -336,6 +336,9 @@ jobs:
           dir3="kernel_workspace/kernel_platform/out/msm-${{ github.event.inputs.CPUD }}-${{ github.event.inputs.CPUD }}-${{ github.event.inputs.BUILD_METHOD }}/dist/"
           dir4="kernel_workspace/kernel_platform/out/msm-kernel-${{ github.event.inputs.CPUD }}-${{ github.event.inputs.BUILD_METHOD }}/gki_kernel/common/arch/arm64/boot/"
           dir5="kernel_workspace/kernel_platform/out/msm-${{ github.event.inputs.CPUD }}-${{ github.event.inputs.CPUD }}-${{ github.event.inputs.BUILD_METHOD }}/gki_kernel/common/arch/arm64/boot/"
+          dir6="kernel_workspace/kernel_platform/out/target/product/${{ github.event.inputs.CPUD }}/obj/KERNEL_OBJ/arch/arm64/boot/"
+          dir7="kernel_workspace/kernel_platform/out/msm-kernel-${{ github.event.inputs.CPUD }}-${{ github.event.inputs.BUILD_METHOD }}/arch/arm64/boot/"
+          dir8="kernel_workspace/kernel_platform/out/arch/arm64/boot/"
           target1="./AnyKernel3/"
           target2="./kernel_workspace/kernel"
 
@@ -350,6 +353,12 @@ jobs:
             image_path="$dir4"Image
           elif find "$dir5" -name "Image" | grep -q "Image"; then
             image_path="$dir5"Image
+          elif find "$dir6" -name "Image" | grep -q "Image"; then
+            image_path="$dir6"Image
+          elif find "$dir7" -name "Image" | grep -q "Image"; then
+            image_path="$dir7"Image
+          elif find "$dir8" -name "Image" | grep -q "Image"; then
+            image_path="$dir8"Image
           else
             image_path=$(find "./kernel_workspace/kernel_platform/common/out/" -name "Image" | head -n 1)
           fi
