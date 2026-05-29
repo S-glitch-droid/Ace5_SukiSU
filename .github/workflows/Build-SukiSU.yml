@@ -239,7 +239,7 @@ jobs:
           echo "CONFIG_KPM=y" >> "$CONFIG_FILE"
 
           # SUSFS config (disabled - not supported on android14-6.1)
-          echo "# CONFIG_KSU_SUSFS is not set" >> "$CONFIG_FILE""
+          # SUSFS disabled for android14-6.1"
 
           # Remove check_defconfig
           sed -i 's/check_defconfig//' ./common/build.config.gki
