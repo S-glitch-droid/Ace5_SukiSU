@@ -344,6 +344,10 @@ jobs:
           else
             image_path=$(find "./kernel_workspace/kernel_platform/common/out/" -name "Image" | head -n 1)
           fi
+          if [ -z "$image_path" ] || [ ! -f "$image_path" ]; then
+            image_path=$(find "./kernel_workspace" -name "Image" -type f 2>/dev/null | head -n 1)
+          fi
+          fi
 
           # 拷贝 Image
           if [ -n "$image_path" ] && [ -f "$image_path" ]; then
