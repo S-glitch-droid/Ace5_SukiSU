@@ -1,0 +1,101 @@
+name: Build Image Only (No AnyKernel3)
+
+on:
+  workflow_dispatch:
+    inputs:
+      CPU:
+        type: choice
+        description: CPU
+        required: true
+        default: sm8650
+        options: [sm8550, sm8650, sm8750]
+      FEIL:
+        type: choice
+        description: Config
+        required: true
+        default: oneplus_ace5
+        options: [oneplus_ace5]
+      CPUD:
+        type: choice
+        description: CPUD
+        required: true
+        default: kalama
+        options: [kalama]
+      ANDROID_VERSION:
+        type: choice
+        description: Android
+        required: true
+        default: android14
+        options: [android14]
+      KERNEL_VERSION:
+        type: choice
+        description: Kernel
+        required: true
+        default: "6.1"
+        options: ["6.1"]
+      BUILD_METHOD:
+        type: choice
+        description: Build
+        required: true
+        default: gki
+        options: [gki]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          swap-size-mb: 8192
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - run: |
+          git config --global user.name "build"
+          git config --global user.email "build@build.com"
+          sudo apt update -y && sudo apt install -y python3 git curl bc bison flex libssl-dev make
+
+      - run: |
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/repo
+          chmod a+x ~/repo && sudo mv ~/repo /usr/local/bin/repo
+
+      - name: Sync kernel source
+        run: |
+          mkdir kw && cd kw
+          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/${{ github.event.inputs.CPU }} -m ${{ github.event.inputs.FEIL }}.xml --depth=1
+          repo sync
+
+      - name: Setup SukiSU
+        run: |
+          cd kw
+          curl -LSs "https://raw.githubusercontent.com/ShirkNeko/KernelSU/refs/heads/main/kernel/setup.sh" | bash -
+
+      - name: Build kernel
+        run: |
+          cd kw
+          LTO=thin SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 ./kernel_platform/oplus/build/oplus_build_kernel.sh ${{ github.event.inputs.CPUD }} ${{ github.event.inputs.BUILD_METHOD }}
+
+      - name: Find and upload Image
+        run: |
+          img=$(find "$(pwd)/kw" -name "Image" -type f 2>/dev/null | head -n 1)
+          if [ -z "$img" ]; then
+            img=$(find "$(pwd)" -name "Image" -type f 2>/dev/null | head -n 1)
+          fi
+          if [ -z "$img" ]; then
+            echo "Image not found!"
+            exit 1
+          fi
+          echo "Found Image: $img ($(du -h "$img" | cut -f1))"
+          mkdir -p output
+          cp "$img" output/Image
+          cp "$img" output/Image_${{ github.event.inputs.KERNEL_VERSION }}
+          echo "KSUVER=$(strings "$img" | grep -oP '4\.\d+\.\d+-\w+' | head -n 1)" >> $GITHUB_ENV
+          echo "version=${{ github.event.inputs.ANDROID_VERSION }}_kernel_${{ github.event.inputs.KERNEL_VERSION }}" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Image_${{ env.version }}
+          path: output/*
