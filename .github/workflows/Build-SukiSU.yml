@@ -136,6 +136,22 @@ jobs:
           sudo apt update && sudo apt upgrade -y
           sudo apt install -y python3 git curl
 
+      - name: Setup ccache
+        run: |
+          sudo apt install -y ccache
+          echo 'CCACHE_DIR=/root/.ccache' >> $GITHUB_ENV
+          echo 'CCACHE_COMPRESS=1' >> $GITHUB_ENV
+          echo 'CCACHE_MAXSIZE=10G' >> $GITHUB_ENV
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: /root/.ccache
+          key: ccache-${{ github.event.inputs.CPUD }}-${{ github.event.inputs.BUILD_METHOD }}-${{ github.event.inputs.KERNEL_VERSION }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ github.event.inputs.CPUD }}-${{ github.event.inputs.BUILD_METHOD }}-${{ github.event.inputs.KERNEL_VERSION }}-
+            ccache-${{ github.event.inputs.CPUD }}-
+
       - name: Show selected inputs debug
         run: |
           echo "Selected CPU: ${{ github.event.inputs.CPU }}"
@@ -306,7 +322,7 @@ jobs:
         if: ${{ github.event.inputs.CPU != 'sm7675' }}
         run: |
          cd kernel_workspace
-         LTO=thin SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 ./kernel_platform/oplus/build/oplus_build_kernel.sh ${{ github.event.inputs.CPUD }} ${{ github.event.inputs.BUILD_METHOD }}
+         LTO=thin SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 CCACHE=ccache ./kernel_platform/oplus/build/oplus_build_kernel.sh ${{ github.event.inputs.CPUD }} ${{ github.event.inputs.BUILD_METHOD }}
 
       - name: Make AnyKernel3
         run: |
