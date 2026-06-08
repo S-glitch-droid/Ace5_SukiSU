@@ -1,0 +1,49 @@
+name: Build GKI Image v40796
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Maximize build space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache
+          sudo docker image prune -a -f || true
+          sudo apt clean
+          df -h
+      - run: |
+          git config --global user.name "build"
+          git config --global user.email "build@build.com"
+          sudo apt update -y && sudo apt install -y python3 git curl bc bison flex libssl-dev make
+      - run: |
+          curl https://storage.googleapis.com/git-repo-downloads/repo > ~/repo
+          chmod a+x ~/repo && sudo mv ~/repo /usr/local/bin/repo
+      - name: Sync kernel source
+        run: |
+          mkdir kw && cd kw
+          repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m oneplus_ace5.xml --depth=1
+          repo sync
+      - name: Setup SukiSU Ultra GKI Built-in
+        run: |
+          cd kw
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash -s builtin
+          cd KernelSU
+          KSU_VER=$(expr $(git rev-list --count main) "+" 10606)
+          echo "KSUVER=$KSU_VER" >> $GITHUB_ENV
+          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VER}/" kernel/Makefile
+          echo "Target KSU version: $KSU_VER"
+      - name: Build kernel GKI
+        run: |
+          cd kw
+          LTO=thin SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 ./kernel_platform/oplus/build/oplus_build_kernel.sh kalama gki
+      - name: Find and upload Image
+        run: |
+          img=$(find "$(pwd)" -name "Image" -type f 2>/dev/null | head -1)
+          echo "Found Image: $img ($(du -h "$img" | cut -f1))"
+          echo "KSUVER=$(strings "$img" | grep -oP '4\.\d+\.\d+-\w+' | head -1)" >> $GITHUB_ENV
+          mkdir -p output
+          cp "$img" output/Image
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GKI_Image
+          path: output/*
