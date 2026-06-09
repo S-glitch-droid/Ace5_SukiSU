@@ -1,0 +1,48 @@
+name: Build GKI Ace5 v141
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_MAXSIZE: 8G
+    steps:
+      - run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache && sudo docker image prune -a -f || true
+      - run: sudo apt update -qq && sudo apt install -y -qq git curl bc bison flex libssl-dev make python3 ccache && git config --global user.name "build" && git config --global user.email "build@build.com"
+      - run: curl -LSs https://storage.googleapis.com/git-repo-downloads/repo | sudo tee /usr/local/bin/repo > /dev/null && sudo chmod a+x /usr/local/bin/repo
+      - name: Sync
+        run: mkdir kw && cd kw && repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m oneplus_ace5.xml --depth=1 && repo sync -c --no-tags -j$(nproc)
+      - name: Set version
+        run: |
+          cd kw/kernel_platform
+          sed -i 's/ -dirty//g' common/scripts/setlocalversion
+          sed -i 's/ -dirty//g' msm-kernel/scripts/setlocalversion 2>/dev/null || true
+          sed -i 's/SUBLEVEL = .*/SUBLEVEL = 141/' common/Makefile
+          git add -A && git commit -m "fix version" || true
+      - name: SukiSU
+        run: |
+          cd kw/kernel_platform
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash
+          cd KernelSU
+          KSU_VER=$(expr $(git rev-list --count main) "+" 10606)
+          echo "KSUVER=$KSU_VER" >> $GITHUB_ENV
+          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VER}/" kernel/Makefile
+      - uses: actions/cache@v5
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-ace5-v141
+          restore-keys: ccache-${{ runner.os }}-ace5-
+      - name: Build
+        run: |
+          export CCACHE_DIR=~/.ccache
+          cd kw
+          LTO=thin SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 ./kernel_platform/oplus/build/oplus_build_kernel.sh kalama gki
+      - name: Upload Image
+        run: |
+          img=$(find "$(pwd)" -name "Image" -type f | head -1)
+          echo "===KERNEL VERSION==="
+          strings "$img" | grep 'Linux version' | head -1
+          mkdir -p output && cp "$img" output/Image
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GKI_Ace5_141
+          path: output/*
