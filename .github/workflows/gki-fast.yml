@@ -1,0 +1,44 @@
+name: GKI Fast Build
+on: workflow_dispatch
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_MAXSIZE: 8G
+    steps:
+      - run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache && sudo docker image prune -a -f || true
+      - run: sudo apt update -qq && sudo apt install -y -qq git curl bc bison flex libssl-dev make python3 ccache gcc-aarch64-linux-gnu && git config --global user.name "build" && git config --global user.email "build@build.com"
+      - run: curl -LSs https://storage.googleapis.com/git-repo-downloads/repo | sudo tee /usr/local/bin/repo > /dev/null && sudo chmod a+x /usr/local/bin/repo
+      - name: Sync
+        run: mkdir kw && cd kw && repo init -u https://github.com/OnePlusOSS/kernel_manifest.git -b refs/heads/oneplus/sm8650 -m oneplus_ace5.xml --depth=1 && repo sync -c --no-tags -j$(nproc)
+      - name: Setup SukiSU
+        run: |
+          cd kw/kernel_platform
+          curl -LSs "https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh" | bash
+          cd KernelSU
+          KSU_VER=$(expr $(git rev-list --count main) "+" 10606)
+          echo "KSUVER=$KSU_VER" >> $GITHUB_ENV
+          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VER}/" kernel/Makefile
+      - uses: actions/cache@v5
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-gki-fast
+          restore-keys: ccache-${{ runner.os }}-gki-
+      - name: Build GKI only
+        run: |
+          export CCACHE_DIR=~/.ccache
+          export PATH="$(pwd)/kw/kernel_platform/prebuilts-master/clang/host/linux-x86/clang-r487747c/bin:$PATH"
+          export PATH="/usr/lib/ccache:$PATH"
+          cd kw/kernel_platform/common
+          sed -i 's/ -dirty//g' scripts/setlocalversion
+          sed -i 's/SUBLEVEL = .*/SUBLEVEL = 141/' Makefile
+          make -j$(nproc) LLVM_IAS=1 LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" O=out gki_defconfig all 2>&1 | tail -5
+      - name: Upload
+        run: |
+          img=$(find "$(pwd)" -name "Image" -type f | head -1)
+          echo "Kernel: $(strings "$img" | grep 'Linux version' | head -1)"
+          mkdir -p output && cp "$img" output/Image
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GKI_Fast
+          path: output/*
