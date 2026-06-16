@@ -1,4 +1,4 @@
-name: Build GKI v40796
+﻿name: Build GKI v40796
 on: workflow_dispatch
 jobs:
   build:
@@ -14,7 +14,7 @@ jobs:
       - name: Build
         run: cd kw && LTO=thin SYSTEM_DLKM_RE_SIGN=0 BUILD_SYSTEM_DLKM=0 KMI_SYMBOL_LIST_STRICT_MODE=0 ./kernel_platform/oplus/build/oplus_build_kernel.sh kalama gki
       - name: Upload
-        run: img=$(find "$(pwd)" -name "Image" -type f | head -1) && mkdir -p output && cp "$$img" output/Image
+        run: img=$(find "$(pwd)" -name "Image" -type f | head -1) && mkdir -p output && cp "$img" output/Image
       - uses: actions/upload-artifact@v4
         with:
           name: GKI_Image
